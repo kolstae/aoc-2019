@@ -24,8 +24,7 @@
          (map (fn [a]
                 [a (->> coords
                         (remove #{a})
-                        (map (juxt identity #(slope a %)))
-                        (group-by second))]))
+                        (group-by #(slope a %)))]))
          (map (fn [[k v]] [k (count v)]))
          (sort-by second)
          last)))
@@ -53,12 +52,11 @@
   (let [coords (parse-coords s)]
     (->> coords
          (remove #{a})
-         (map (juxt #(dist a %) #(slope a %) identity))
-         (group-by second)
-         (map (fn [[k v]] [k (map #(nth % 2) (sort-by first v))]))
+         (group-by #(slope a %))
+         (map (fn [[k v]] [k (sort-by #(dist a %) v)]))
          (sort-by first)
          (map second)
-         interleave-all)))
+         (interleave-all))))
 
 (defn part-2 [hit-coords]
   (->> (drop 199 hit-coords)
