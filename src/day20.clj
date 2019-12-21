@@ -86,7 +86,7 @@
                       (vals (group-by second (filter second portals))))
         paths (fn [pos]
                 (into {} (paths tiles pos (get portals pos))))]
-    (dijkstra start paths end)))
+    (dijkstra start paths #{end})))
 
 (comment
   (part-1 "         A           \n         A           \n  #######.#########  \n  #######.........#  \n  #######.#######.#  \n  #######.#######.#  \n  #######.#######.#  \n  #####  B    ###.#  \nBC...##  C    ###.#  \n  ##.##       ###.#  \n  ##...DE  F  ###.#  \n  #####    G  ###.#  \n  #########.#####.#  \nDE..#######...###.#  \n  #.#########.###.#  \nFG..#########.....#  \n  ###########.#####  \n             Z       \n             Z       ")
@@ -132,7 +132,7 @@
                   (into {}
                         (map (fn [[pos n]] [(conj pos lvl) n]))
                         (paths ts [x y] j-pos))))]
-    (dijkstra (conj start 0) paths (conj end 0))))
+    (dijkstra (conj start 0) paths #{(conj end 0)})))
 
 (comment
   (part-2 "         A           \n         A           \n  #######.#########  \n  #######.........#  \n  #######.#######.#  \n  #######.#######.#  \n  #######.#######.#  \n  #####  B    ###.#  \nBC...##  C    ###.#  \n  ##.##       ###.#  \n  ##...DE  F  ###.#  \n  #####    G  ###.#  \n  #########.#####.#  \nDE..#######...###.#  \n  #.#########.###.#  \nFG..#########.....#  \n  ###########.#####  \n             Z       \n             Z       ")

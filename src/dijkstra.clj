@@ -10,13 +10,13 @@
   (let [m (merge-with f m m2)]
     {:m m :q (map first (sort-by val m))}))
 
-(defn dijkstra [start f end]
+(defn dijkstra [start f done?]
   (loop [q (q-map start 0) r {}]
     (if-let [[v d] (q-peek q)]
       (let [dist (-> (f v) (remove-keys r) (map-vals (partial + d)))]
         ;(prn :dijkstra v d dist)
         ;(Thread/sleep 100)
-        (if (= end v)
+        (if (done? v)
           d
           (recur (q-merge-with min (q-pop q) dist) (assoc r v d))))
       r)))
