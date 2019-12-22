@@ -1,7 +1,7 @@
 (ns day18
   (:require [clojure.java.io :as io]
             [clojure.string :as str]
-            [clojure.set :as set]))
+            [dijkstra :refer [dijkstra]]))
 
 (def input (slurp (io/resource "day18.txt")))
 
@@ -27,7 +27,7 @@
 (defn print-screen [tiles]
   (doseq [l (draw-screen tiles)] (println l)))
 
-(defn key? [c] (and (char? c) (Character/isLowerCase (char c))))
+(defn key? [c] (when (and (char? c) (Character/isLowerCase (char c))) c))
 (defn branch-point? [c] (or (key? c) (= \+ c)))
 (defn take-until [p s] (transduce (halt-when p (fn [r h] (conj r h))) conj [] s))
 
@@ -48,32 +48,17 @@
        (map (juxt #(poi tiles delta %) identity))
        (take-while (comp some? first))))
 
-(defn viable [keys turned-at path]
-  (->> path
-       (drop-while (fn [[poi]] (or (contains? keys poi) (false? poi))))
-       first
-       ((fn [[c pos]] (and (branch-point? c) (not (turned-at pos)))))))
+(defn split-paths [keys path]
+  (let [[p [[c pos]]] (split-with (fn [[poi]] (or (contains? keys poi) (false? poi))) path)]
+    ;(prn p c pos)
+    (when (branch-point? c)
+      [pos (+ 1 (count p))])))
 
-(defn paths-from [tiles pos keys turned-at]
-  (filter #(viable keys turned-at %) (map #(strait-path tiles pos %) deltas)))
-
-(defn consume-path [{:keys [tiles path walked-path keys all-keys turned-at]}]
-  (let [p1 (take-until (comp branch-point? first) path)
-        [poi pos] (first (filter (comp branch-point? first) p1))
-        tiles (reduce #(assoc %1 %2 \.) tiles (map second p1))
-        keys (cond-> keys (key? poi) (conj (Character/toUpperCase (char poi))))
-        ;_ (prn pos keys (paths-from tiles pos keys turned-at))
-        ;_ (prn all-keys keys)
-        ;_ (print-screen tiles)
-        walked-path (into walked-path (map second) p1)
-        turned-at (if (key? poi) #{} (conj turned-at pos))]
-    (if (= all-keys keys)
-      {:walked-path walked-path}
-      (map (fn [p] {:tiles tiles :keys keys
-                    :walked-path walked-path
-                    :path p :all-keys all-keys
-                    :turned-at turned-at})
-           (paths-from tiles pos keys turned-at)))))
+(defn paths [tiles x y keys]
+  ;(prn (filter seq (map #(strait-path tiles [x y] %) deltas)))
+  (->> (map #(strait-path tiles [x y] %) deltas)
+       (filter seq)
+       (keep #(split-paths keys %))))
 
 (defn part-1 [s]
   (let [tiles (parse-input s)
@@ -83,16 +68,19 @@
                        tiles)
         _ (prn :start-pos start-pos :all-keys all-keys)
         _ (print-screen tiles)
-        m {:tiles (assoc tiles start-pos \.) :keys #{}
-           :walked-path [] :all-keys all-keys :turned-at #{start-pos}}]
-    (loop [paths (map #(assoc m :path %) (paths-from tiles start-pos #{} #{})) done nil]
-      (if (seq paths)
-        (let [ps (consume-path (first paths))]
-          ;(prn ps)
-          (if (map? ps)
-            (recur (next paths) (if done (min-key count (:walked-path ps) done) (:walked-path ps)))
-            (recur (sort-by (comp count :walked-path) (concat (next paths) ps)) done)))
-        (count done)))))
+        tiles (assoc tiles start-pos \.)
+        paths (fn [[x y keys]]
+                (into {}
+                      (map (fn [[k v]]
+                             (if-let [key (key? (tiles k))]
+                               [(conj k (conj keys (Character/toUpperCase (char key)))) v]
+                               [(conj k keys) v])))
+                      (paths tiles x y keys)))
+        ]
+    (time (dijkstra (conj start-pos #{}) paths (fn [[_ _ ks]] (= ks all-keys))))
+    #_[(paths (conj start-pos #{}))
+       (paths [17 1 #{\A}])]
+    ))
 
 (comment
   (part-1 "#########\n#b.A.@.a#\n#########")
@@ -100,5 +88,5 @@
   (part-1 "########################\n#...............b.C.D.f#\n#.######################\n#.....@.a.B.c.d.A.e.F.g#\n########################")
   (part-1 "#################\n#i.G..c...e..H.p#\n########.########\n#j.A..b...f..D.o#\n########@########\n#k.E..a...g..B.n#\n########.########\n#l.F..d...h..C.m#\n#################")
   (part-1 "########################\n#@..............ac.GI.b#\n###d#e#f################\n###A#B#C################\n###g#h#i################\n########################")
-  (part-1 input)
+  (part-1 input)                                            ;1420081
   )
