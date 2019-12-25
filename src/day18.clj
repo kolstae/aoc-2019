@@ -51,8 +51,9 @@
 (defn split-paths [keys path]
   (let [[p [[c pos]]] (split-with (fn [[poi]] (or (contains? keys poi) (false? poi))) path)]
     ;(prn p c pos)
-    (when (branch-point? c)
-      [pos (+ 1 (count p))])))
+    (cond
+      (branch-point? c) [pos (+ 1 (count p))]
+      (contains? keys (first (last p))) [(second (last p)) (+ (count p))])))
 
 (defn paths [tiles x y keys]
   ;(prn (filter seq (map #(strait-path tiles [x y] %) deltas)))
@@ -77,9 +78,9 @@
                                [(conj k keys) v])))
                       (paths tiles x y keys)))
         ]
-    (time (dijkstra (conj start-pos #{}) paths (fn [[_ _ ks]] (= ks all-keys))))
-    #_[(paths (conj start-pos #{}))
-       (paths [17 1 #{\A}])]
+    #_(time (dijkstra (conj start-pos #{}) paths (fn [[_ _ ks]] (= ks all-keys))))
+    [(paths (conj start-pos #{}))
+     #_(paths [17 1 #{\A}])]
     ))
 
 (comment
@@ -89,4 +90,49 @@
   (part-1 "#################\n#i.G..c...e..H.p#\n########.########\n#j.A..b...f..D.o#\n########@########\n#k.E..a...g..B.n#\n########.########\n#l.F..d...h..C.m#\n#################")
   (part-1 "########################\n#@..............ac.GI.b#\n###d#e#f################\n###A#B#C################\n###g#h#i################\n########################")
   (part-1 input)                                            ;1420081
+  )
+
+(defn part-2 [s]
+  (let [tiles (parse-input s)
+        start-pos (sort (map first (filter (comp #{\@} second) tiles)))
+        all-keys (into #{} (comp (filter (comp key? second))
+                                 (map #(Character/toUpperCase (char (second %)))))
+                       tiles)
+        [tiles start-pos] (if (= (count start-pos) 1)
+                            [(reduce (fn [m p] (dissoc m p))
+                                     (dissoc tiles (first start-pos))
+                                     (map #(mapv + (first start-pos) %) deltas))
+                             (map #(mapv + (first start-pos) %) [[-1 -1] [-1 1] [1 -1] [1 1]])]
+                            [tiles start-pos])
+        _ (prn :start-pos start-pos :all-keys all-keys)
+        tiles (into tiles (zipmap start-pos (repeat \.)))
+        _ (print-screen tiles)
+        paths (fn [[keys & ps]]
+                (into {}
+                      (mapcat (fn [p]
+                                (let [[x y] p]
+                                  (map (fn [[k v]]
+                                         (let [as (take-while (complement #{p}) ps)
+                                               cs (next (drop-while (complement #{p}) ps))]
+                                           [(into [(if-let [key (key? (tiles k))]
+                                                    (conj keys (Character/toUpperCase (char key)))
+                                                    keys)]
+                                                 (concat as [k] cs))
+                                            v]))
+                                       (paths tiles x y keys))))
+                              ps)))
+        start-pos (into [#{}] start-pos)
+        ]
+    #_[(paths [#{\E \H \I} [5 2] [5 5] [9 1] [7 6]])
+     (paths [#{\E \H \I} [5 2] [5 5] [7 1] [7 6]])
+     (paths [#{\E \H \I} [5 2] [5 5] [9 1] [7 7]])]
+    (dijkstra start-pos paths (fn [[ks]] (= all-keys ks)))
+    ))
+
+(comment
+  (part-2 "#######\n#a.#Cd#\n##...##\n##.@.##\n##...##\n#cB#Ab#\n#######")
+  (part-2 "###############\n#d.ABC.#.....a#\n######@#@######\n###############\n######@#@######\n#b.....#.....c#\n###############")
+  (part-2 "#############\n#DcBa.#.GhKl#\n#.###@#@#I###\n#e#d#####j#k#\n###C#@#@###J#\n#fEbA.#.FgHi#\n#############")
+  (part-2 "#############\n#g#f.D#..h#l#\n#F###e#E###.#\n#dCba@#@BcIJ#\n#############\n#nK.L@#@G...#\n#M###N#H###.#\n#o#m..#i#jk.#\n#############")
+  (time (part-2 input))
   )
