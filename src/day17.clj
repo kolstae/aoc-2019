@@ -1,5 +1,6 @@
 (ns day17
   (:require [clojure.java.io :as io]
+            [clojure.string :as str]
             [intcode]))
 
 (def input (slurp (io/resource "day17.txt")))
@@ -17,8 +18,8 @@
                                         (cons c (when x2 (repeat (dec (- x2 x)) \space)))))
                               (apply str)))))))
 
-(defn exec [memory]
-  (let [initial-state {:memory memory :i-ptr 0 :input [] :relbase 0}]
+(defn exec [memory & [input]]
+  (let [initial-state {:memory memory :i-ptr 0 :input (or input []) :relbase 0}]
     (loop [state initial-state]
       (if (int? (get state :i-ptr))
         (recur (intcode/do-next-opcode state))
@@ -70,16 +71,36 @@
         (recur (make-turn tiles pos dir) pos (into (conj path turn (count n-path)))))
       path)))
 
-(defn find-patt [path]
-  (->> (mapcat #(partition % 1 path) (range 2 15))
-       distinct
-       (keep (fn [patt] (filter #{patt} (partition (count patt) 1 path))))
-       (filter next)
-       (sort-by #(- (count (first %))))
-       (map first)))
+(defn skip-patt [patts path]
+  (loop [ps patts path path]
+    (if (seq ps)
+      (let [[patt & ps] ps]
+        (if (= patt (take (count patt) path))
+          (recur patts (drop (count patt) path))
+          (recur ps path)))
+      path)))
 
-(defn part-2 [s]
-  (let [all-tiles (->> (exec (intcode/parse-input s))
+(defn enc [cs]
+  (->> cs
+       (partition-by identity)
+       (map (fn [[c & cs]] (if cs (inc (count cs)) c)))
+       (str/join \,)))
+
+(defn enc-len [cs]
+  (count (enc cs)))
+
+(defn compress [patts->c path]
+  (loop [ps patts->c path path cs []]
+    (if (seq ps)
+      (let [[patt c] (first ps)
+            ps (dissoc ps patt)]
+        (if (= patt (take (count patt) path))
+          (recur patts->c (drop (count patt) path) (conj cs c))
+          (recur ps path cs)))
+      (str/join \, cs))))
+
+(defn mk-fns [mem]
+  (let [all-tiles (->> (exec mem)
                        :output
                        (map char)
                        (reduce (fn [[tiles [x y]] c] [(cond-> tiles (not (#{\newline \.} c)) (assoc [x y] c))
@@ -90,25 +111,37 @@
         tiles (dissoc all-tiles start-pos)
         _ (doseq [l (draw-screen all-tiles)] (println l))
         path (find-path tiles [:left :left] start-pos)
-        patterns (find-patt path)
-        _ (prn (count patterns) patterns)]
-    (->> (for [a patterns b patterns c patterns
-               :when (and (> (count path) (+ (count a) (count b) (count c))) (distinct? a b c))]
-           (let [used {a :a b :b c :c}
-                 s (reduce (fn [ps l]
-                             (map #(let [m (get used % %)]
-                                     (if (coll? m) (first m) m))
-                                  (partition-all l 1 ps)))
-                           path
-                           (distinct (map count [a b c])))]
-             ;[(- (count (filter keyword? s))) s]
-             (when (not-any? number? s) [s used])
-             ))
-         (filter identity)
-         ;distinct
-         ;(sort-by first)
-         first)))
+        c-path (mapcat (fn [x] (if (int? x) (repeat x \f) ({:right '(\R) :left '(\L)} x))) path)
+        min-len 3]
+    (loop [a min-len b min-len c min-len]
+      (let [as (take a c-path)
+            rs (skip-patt [as] c-path)
+            bs (take b rs)
+            rs (skip-patt [as bs] rs)
+            cs (take c rs)
+            rs (skip-patt [as bs cs] rs)]
+        (if (seq rs)
+          (let [[a b c] (if (> 20 (enc-len cs))
+                          [a b (inc c)]
+                          (if (> 20 (enc-len bs))
+                            [a (inc b) min-len]
+                            [(inc a) min-len min-len]))]
+            (recur a b (inc c)))
+          [(compress {as \A bs \B cs \C} c-path)
+           (enc as)
+           (enc bs)
+           (enc cs)])))))
+
+(defn part-2 [s]
+  (let [mem (intcode/parse-input s)
+        fns (mk-fns mem)
+        input (str/join (interleave (concat fns ["n"]) (repeat "\n")))
+        _ (println input)]
+    (->> (mapv int input)
+         (exec (assoc mem 0 2))
+         :output
+         last)))
 
 (comment
-  (part-2 input)
+  (part-2 input)                                            ;809736
   )
